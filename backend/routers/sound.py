@@ -39,7 +39,7 @@ async def upload_sound(
     # 3. 중복 파일 검사
     exists = db.query(SoundFile).filter(SoundFile.data == mp3_bytes).first()
     if exists:
-        return exists  # 이미 존재하면 그대로 반환
+        return exists
 
     # 4. 새 사운드 객체 생성
     new_sound = SoundFile(name=name, data=mp3_bytes, mime_type="audio/mpeg")
@@ -49,10 +49,10 @@ async def upload_sound(
     for tag_name in tag_names:
         tag = db.query(Tag).filter(Tag.name == tag_name).first()
         if not tag:
-            # 새로운 태그를 먼저 생성
             tag = Tag(name=tag_name)
             db.add(tag)
-            db.flush()  # ID 확보 (commit보다 가볍게 세션 반영)
+            db.commit()
+            db.refresh(tag)
         new_sound.tags.append(tag)
 
     db.add(new_sound)
@@ -91,7 +91,6 @@ async def ai_search(
     db: Session = Depends(get_db)
 ):
     ai_tags = await get_tags_from_gpt(prompt, db)
-
     sounds = (
         db.query(SoundFile)
         .join(SoundFile.tags)

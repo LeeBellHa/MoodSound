@@ -80,21 +80,24 @@
       document.getElementById('step' + num).classList.add('active');
     }
 
-    // 의성어/의태어 리스트
+    // 의성어/의태어 관리
     const onomInput = document.getElementById('onomInput');
     const onomList = document.getElementById('onomList');
     const customOnoms = [];
+
     onomInput.addEventListener('keypress', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
         const val = onomInput.value.trim();
         if (val && !customOnoms.includes(val)) {
           customOnoms.push(val);
+          console.log("✅ 의성어 추가됨:", val, "현재 목록:", customOnoms);
           renderOnoms();
         }
         onomInput.value = '';
       }
     });
+
     function renderOnoms() {
       onomList.innerHTML = '';
       customOnoms.forEach(t => {
@@ -116,15 +119,15 @@
       const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'));
       const catTags = checked.map(c => c.value);
 
-      // 모든 태그 합치기
+      // 최종 태그 배열
       const allTags = [...catTags, ...customOnoms];
 
       // 📌 디버그 로그
-      console.log("=== 업로드 전송 디버그 ===");
+      console.log("=== [FRONTEND DEBUG] 업로드 전송 ===");
       console.log("파일 이름:", name);
-      console.log("선택된 카테고리 태그:", catTags);
-      console.log("추가된 의성어 태그:", customOnoms);
-      console.log("최종 전송할 태그(allTags):", allTags);
+      console.log("선택된 카테고리 태그(catTags):", catTags);
+      console.log("추가된 의성어(customOnoms):", customOnoms);
+      console.log("최종 전송할 allTags:", allTags);
 
       if (allTags.length === 0) {
         alert('최소 한 개 이상의 태그를 선택하거나 추가해주세요.');
@@ -146,17 +149,17 @@
         if (res.ok) {
           result.style.color = 'green';
           result.innerText = `✅ 업로드 성공! ID:${data.id}, 이름:${data.name}`;
-          console.log("✅ 업로드 응답 데이터:", data);
+          console.log("✅ [FRONTEND DEBUG] 업로드 응답:", data);
         } else {
           result.style.color = 'red';
           result.innerText = `❌ 업로드 실패: ${data.detail || JSON.stringify(data)}`;
-          console.error("❌ 업로드 실패 응답:", data);
+          console.error("❌ [FRONTEND DEBUG] 업로드 실패 응답:", data);
         }
       } catch (err) {
         const result = document.getElementById('result');
         result.style.color = 'red';
         result.innerText = `⚠️ 에러 발생: ${err}`;
-        console.error("⚠️ 업로드 중 에러:", err);
+        console.error("⚠️ [FRONTEND DEBUG] 업로드 중 에러:", err);
       }
     }
   </script>
