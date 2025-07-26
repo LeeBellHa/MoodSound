@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>MoodSound 사용자 페이지</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    h1 { margin-bottom: 20px; }
+    label { display: block; margin-top: 15px; }
+    input[type="text"], textarea {
+      padding: 5px; width: 300px; margin-right: 10px;
+    }
+    button { padding: 6px 12px; margin-top: 5px; }
+    ul { margin-top: 20px; padding-left: 0; list-style: none; }
+    li { margin-bottom: 20px; }
+    audio { display: block; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>MoodSound 검색</h1>
+
+  <!-- 태그로 직접 검색 -->
+  <section>
+    <h2>🔎 태그로 검색</h2>
+    <label>
+      태그:
+      <input type="text" id="tagInput" placeholder="예: 물방울">
+    </label>
+    <button id="searchTagBtn">검색</button>
+  </section>
+
+  <!-- GPT 상황으로 검색 -->
+  <section>
+    <h2>✨ 상황으로 검색 (GPT 사용)</h2>
+    <label>
+      상황:
+      <textarea id="situationInput" rows="3" placeholder="예: 비 오는 날에 듣기 좋은 소리"></textarea>
+    </label>
+    <button id="searchAiBtn">AI에게 추천받기</button>
+  </section>
+
+  <hr>
+
+  <!-- 결과 -->
+  <h2>🎧 검색 결과</h2>
+  <ul id="resultList"></ul>
+
+  <script>
+    const baseUrl = "http://127.0.0.1:8000";
+
+    // 🟢 태그로 검색
+    document.getElementById('searchTagBtn').addEventListener('click', async () => {
+      const tag = document.getElementById('tagInput').value.trim();
+      if (!tag) {
+        alert('태그를 입력하세요');
+        return;
+      }
+      await searchByTag(tag);
+    });
+
+    async function searchByTag(tag) {
+      try {
+        const res = await fetch(`${baseUrl}/api/sounds/search?tag=${encodeURIComponent(tag)}`);
+        const data = await res.json();
+        await renderResults(data);
+      } catch (err) {
+        console.error(err);
+        alert("검색 중 오류가 발생했습니다.");
+      }
+    }
+
+    // 🟣 GPT 상황으로 검색
+    document.getElementById('searchAiBtn').addEventListener('click', async () => {
+      const prompt = document.getElementById('situationInput').value.trim();
+      if (!prompt) {
+        alert('상황을 입력하세요');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${baseUrl}/api/sounds/ai_search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert("AI 검색 실패: " + (err.detail || res.statusText));
+          return;
+        }
+        const data = await res.json();
+        console.log("AI 추천 태그:", data.tags);
+        await renderResults(data.results, data.tags);
+      } catch (err) {
+        console.error(err);
+        alert("AI 검색 중 오류가 발생했습니다.");
+      }
+    });
+
+    // 🖼 결과 렌더링 (Blob 사용)
+    async function renderResults(results, aiTags = null) {
+      const list = document.getElementById('resultList');
+      list.innerHTML = '';
+
+      if (aiTags) {
+        const tagInfo = document.createElement('li');
+        tagInfo.style.color = 'green';
+        tagInfo.innerText = `AI 추천 태그: ${aiTags.join(', ')}`;
+        list.appendChild(tagInfo);
+      }
+
+      if (!results || results.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = "검색 결과가 없습니다.";
+        list.appendChild(li);
+        return;
+      }
+
+      for (const item of results) {
+        // 태그 문자열 만들기
+        const tagNames = item.tags && Array.isArray(item.tags)
+          ? item.tags.map(t => t.name).join(', ')
+          : '없음';
+
+        // 🔥 파일 fetch -> Blob URL 생성
+        try {
+          const audioRes = await fetch(`${baseUrl}/api/sounds/${item.id}`);
+          const arrayBuffer = await audioRes.arrayBuffer();
+          const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+          const blobUrl = URL.createObjectURL(blob);
+
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <strong>${item.name}</strong> (태그: ${tagNames})
+            <audio controls src="${blobUrl}"></audio>
+          `;
+          list.appendChild(li);
+        } catch (err) {
+          console.error("오디오 로드 오류:", err);
+          const li = document.createElement('li');
+          li.textContent = `오디오 로드 실패: ${item.name}`;
+          list.appendChild(li);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>MoodSound 파일 업로드 (개선 UX + 디버그로그)</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    h1 { margin-bottom: 20px; }
+    .step { display: none; }
+    .step.active { display: block; }
+    fieldset { margin-bottom: 15px; }
+    input[type="text"], input[type="file"] {
+      padding: 5px; width: 300px;
+    }
+    button { padding: 6px 12px; margin-top: 10px; }
+    .tag-list span {
+      display:inline-block;
+      background:#eee;
+      padding:3px 8px;
+      margin:3px;
+      border-radius:4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>MoodSound 파일 업로드</h1>
+
+  <!-- Step 1 -->
+  <div id="step1" class="step active">
+    <label>파일 이름:
+      <input type="text" id="name" placeholder="파일 이름을 입력하세요" required>
+    </label><br><br>
+    <label>파일 선택:
+      <input type="file" id="file" accept=".mp3,.wav" required>
+    </label>
+    <br>
+    <button onclick="nextStep(2)">다음 (태그 선택)</button>
+  </div>
+
+  <!-- Step 2 -->
+  <div id="step2" class="step">
+    <h3>카테고리 태그 선택</h3>
+    <fieldset>
+      <legend>환경음</legend>
+      <label><input type="checkbox" value="도시"> 도시</label>
+      <label><input type="checkbox" value="자연"> 자연</label>
+      <label><input type="checkbox" value="실내"> 실내</label>
+      <label><input type="checkbox" value="실외"> 실외</label>
+    </fieldset>
+    <fieldset>
+      <legend>행동</legend>
+      <label><input type="checkbox" value="걸음"> 걸음</label>
+      <label><input type="checkbox" value="타격"> 타격</label>
+      <label><input type="checkbox" value="문닫기"> 문닫기</label>
+    </fieldset>
+    <fieldset>
+      <legend>감정</legend>
+      <label><input type="checkbox" value="긍정"> 긍정</label>
+      <label><input type="checkbox" value="부정"> 부정</label>
+      <label><input type="checkbox" value="없음"> 없음</label>
+    </fieldset>
+    <button onclick="nextStep(3)">다음 (의성어/의태어 추가)</button>
+  </div>
+
+  <!-- Step 3 -->
+  <div id="step3" class="step">
+    <h3>의성어/의태어 추가</h3>
+    <p>엔터로 여러 개를 추가할 수 있습니다.</p>
+    <input type="text" id="onomInput" placeholder="예: 뾰로롱 입력 후 엔터">
+    <div class="tag-list" id="onomList"></div>
+    <button onclick="finish()">업로드하기</button>
+  </div>
+
+  <div id="result" style="margin-top:20px;font-weight:bold;"></div>
+
+  <script>
+    const steps = document.querySelectorAll('.step');
+    function nextStep(num) {
+      steps.forEach(s => s.classList.remove('active'));
+      document.getElementById('step' + num).classList.add('active');
+    }
+
+    // 의성어/의태어 리스트
+    const onomInput = document.getElementById('onomInput');
+    const onomList = document.getElementById('onomList');
+    const customOnoms = [];
+    onomInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = onomInput.value.trim();
+        if (val && !customOnoms.includes(val)) {
+          customOnoms.push(val);
+          renderOnoms();
+        }
+        onomInput.value = '';
+      }
+    });
+    function renderOnoms() {
+      onomList.innerHTML = '';
+      customOnoms.forEach(t => {
+        const span = document.createElement('span');
+        span.innerText = t;
+        onomList.appendChild(span);
+      });
+    }
+
+    async function finish() {
+      const name = document.getElementById('name').value.trim();
+      const file = document.getElementById('file').files[0];
+      if (!name || !file) {
+        alert('파일 이름과 파일을 모두 입력해주세요.');
+        return;
+      }
+
+      // 체크된 카테고리 태그
+      const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'));
+      const catTags = checked.map(c => c.value);
+
+      // 모든 태그 합치기
+      const allTags = [...catTags, ...customOnoms];
+
+      // 📌 디버그 로그
+      console.log("=== 업로드 전송 디버그 ===");
+      console.log("파일 이름:", name);
+      console.log("선택된 카테고리 태그:", catTags);
+      console.log("추가된 의성어 태그:", customOnoms);
+      console.log("최종 전송할 태그(allTags):", allTags);
+
+      if (allTags.length === 0) {
+        alert('최소 한 개 이상의 태그를 선택하거나 추가해주세요.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('tags', allTags.join(',')); // 쉼표로 합침
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('http://127.0.0.1:8000/api/sounds', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        const result = document.getElementById('result');
+        if (res.ok) {
+          result.style.color = 'green';
+          result.innerText = `✅ 업로드 성공! ID:${data.id}, 이름:${data.name}`;
+          console.log("✅ 업로드 응답 데이터:", data);
+        } else {
+          result.style.color = 'red';
+          result.innerText = `❌ 업로드 실패: ${data.detail || JSON.stringify(data)}`;
+          console.error("❌ 업로드 실패 응답:", data);
+        }
+      } catch (err) {
+        const result = document.getElementById('result');
+        result.style.color = 'red';
+        result.innerText = `⚠️ 에러 발생: ${err}`;
+        console.error("⚠️ 업로드 중 에러:", err);
+      }
+    }
+  </script>
+</body>
+</html>
